@@ -2582,3 +2582,36 @@
 18:53:43.285879 db@open done T·54.7409ms
 18:55:06.710369 db@close closing
 18:55:06.710369 db@close done T·0s
+=============== Apr 16, 2025 (IST) ===============
+20:11:41.535277 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+20:11:41.536424 version@stat F·[3 1] S·1MiB[147KiB 1MiB] Sc·[0.75 0.01]
+20:11:41.536929 db@open opening
+20:11:41.536929 journal@recovery F·1
+20:11:41.540496 journal@recovery recovering @588
+20:11:41.542582 memdb@flush created L0@590 N·37 S·13KiB "H\x1a{..p\xbbW,v20736":"\xc1#\xf5..\x1eT\x18,v20758"
+20:11:41.547674 version@stat F·[4 1] S·1MiB[160KiB 1MiB] Sc·[1.00 0.01]
+20:11:41.565566 db@janitor F·7 G·0
+20:11:41.565566 db@open done T·28.6374ms
+20:11:41.566568 table@compaction L0·4 -> L1·1 S·1MiB Q·20761
+20:11:41.609586 table@build created L1@593 N·13673 S·1MiB "\x01\x95\x92..\x8a\xc9\xe9,v17257":"\xff\xf6\xe6..\t0\x9e,v12912"
+20:11:41.610108 version@stat F·[0 1] S·1MiB[0B 1MiB] Sc·[0.00 0.01]
+20:11:41.611180 table@compaction committed F-4 S-21KiB Ke·0 D·109 T·44.6126ms
+20:11:41.611701 table@remove removed @587
+20:11:41.612223 table@remove removed @584
+20:11:41.612744 table@remove removed @581
+20:11:41.613266 table@remove removed @580
+20:12:00.938790 db@close closing
+20:12:00.940741 db@close done T·1.9506ms
+=============== Apr 16, 2025 (IST) ===============
+20:18:00.357801 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+20:18:00.358369 version@stat F·[0 1] S·1MiB[0B 1MiB] Sc·[0.00 0.01]
+20:18:00.358369 db@open opening
+20:18:00.358369 journal@recovery F·1
+20:18:00.360443 journal@recovery recovering @591
+20:18:00.362626 memdb@flush created L0@594 N·4 S·4KiB "Sna..tor,v20763":"unc..own,v20762"
+20:18:00.367692 version@stat F·[1 1] S·1MiB[4KiB 1MiB] Sc·[0.25 0.01]
+20:18:00.373500 db@janitor F·5 G·1
+20:18:00.373500 db@janitor removing table-590
+20:18:00.373500 db@open done T·15.1304ms
+20:18:21.282421 db@close closing
+20:18:21.282945 db@close done T·524.4µs
