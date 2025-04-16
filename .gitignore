@@ -1,0 +1,12 @@
+# Ignore environment files
+backend/.env
+
+# Python cache
+__pycache__/
+
+# Node and dependency folders (if any)
+node_modules/
+
+# System files
+*.log
+*.DS_Store

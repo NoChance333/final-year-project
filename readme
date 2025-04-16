@@ -1,0 +1,30 @@
+Private Key: f8dafc1da82c53717e6d15ab4b87806a9ac834468da7c3a4f174ec1c08de6469
+
+account address - fa2bb1c309d2a187afa1ff535031c4cc5406b7cf
+
+
+chain start - geth --networkid 1234 --datadir "./data" --port 30303 --ipcdisable --syncmode full --http --allow-insecure-unlock --http.corsdomain "*" --http.port 8545 --http.api "admin,eth,net,web3,personal,miner" --unlock 0xfa2bb1c309d2a187afa1ff535031c4cc5406b7cf --password "E:\Proof of Authority\data\password.txt" --mine console
+
+ 
+main pc setup - geth --networkid 1234 --datadir "./data" --port 30303 --http --http.addr "0.0.0.0" --http.api "eth,net,web3,admin" --allow-insecure-unlock --unlock 0xfa2bb1c309d2a187afa1ff535031c4cc5406b7cf --password "E:\Proof of Authority\data\password.txt" --mine --nodiscover --verbosity 3 console
+
+
+ geth attach - geth attach http://127.0.0.1:8545
+
+geth --networkid 1234 --http --http.addr "0.0.0.0" --http.port 8545 --http.api "admin,eth,net,web3,personal" --port 30303 --allow-insecure-unlock --ipcpath "\\.\pipe\geth.ipc" --nat "extip:192.168.1.204" --bootnodes "enode://0d2de07b0c431c1f4d6bfbe7e0d9d23d02c63d36842a40e3243ffacb12e83b845350059288b3ca01df86e2ff6c6b6422cf9dfbacffd550db66e66bee26f0c384@192.168.1.204:30301"
+
+
+
+geth --networkid 1234 --datadir "./data"  --http --http.addr "0.0.0.0" --http.port 8545 --http.api "admin,eth,net,web3,personal"  --unlock 0xfa2bb1c309d2a187afa1ff535031c4cc5406b7cf --password "E:\Proof of Authority\data\password.txt" --port 30303 --allow-insecure-unlock --ipcpath "\\.\pipe\geth.ipc" --nat "extip:192.168.1.204" --bootnodes "enode://0d2de07b0c431c1f4d6bfbe7e0d9d23d02c63d36842a40e3243ffacb12e83b845350059288b3ca01df86e2ff6c6b6422cf9dfbacffd550db66e66bee26f0c384@192.168.1.204:30301" --mine console
+
+
+
+
+tomorrow - geth --networkid 1234 --datadir "./data" --port 30303 --ipcdisable --syncmode full --http --allow-insecure-unlock --http.corsdomain "*" --http.port 8545 --http.api "admin,eth,net,web3,personal,miner" --unlock 0xfa2bb1c309d2a187afa1ff535031c4cc5406b7cf --password "E:\Proof of Authority\data\password.txt" --mine console
+
+
+
+02/03/25 - geth --networkid 1234 --datadir "E:\Proof of Authority\blockchain\data" --port 30303 --syncmode full --http --http.addr "0.0.0.0" --http.corsdomain "*" --http.port 8545 --http.api "admin,eth,net,web3,personal,miner" --unlock "0xfa2bb1c309d2a187afa1ff535031c4cc5406b7cf" --password "E:\Proof of Authority\blockchain\data\password.txt" --mine --allow-insecure-unlock console
+
+
+17/03/25 - geth --networkid 1234 --datadir "E:\Proof of Authority\blockchain\data" --port 30303 --syncmode full --http --http.addr "0.0.0.0" --http.corsdomain "*" --http.port 8545 --http.api "admin,eth,net,web3,personal,miner" --unlock "0xfa2bb1c309d2a187afa1ff535031c4cc5406b7cf" --password "E:\Proof of Authority\blockchain\data\password.txt" --allow-insecure-unlock console

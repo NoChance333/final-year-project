@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Novis - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    
+    <!-- Login Form (Centered with Logo Above) -->
+    <main class="w-full max-w-md p-6">
+        <div class="bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center">
+            <!-- Novis Logo Centered Above "Welcome Back" -->
+            <div class="w-35 h-35 mb-4">
+                <img src="{{ url_for('static', filename='images/novis.png') }}" alt="Novis Logo" class="w-full h-full object-contain">
+            </div>
+
+            <!-- Welcome Back Text -->
+            <h2 class="text-3xl font-bold text-gray-900 mb-6 text-center">Welcome Back</h2>
+            
+            <form id="login-form" class="w-full">
+                <div class="mb-6">
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="email" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black" required>
+                </div>
+
+                <!-- Error Message (Hidden by Default) -->
+                <p id="login-error" class="text-red-600 text-sm mb-4 hidden">Invalid email or password. Please try again.</p>
+
+                <button type="submit" class="w-full bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors">
+                    Log In
+                </button>
+
+                <p class="mt-4 text-center text-sm text-gray-600">
+                    Don't have an account? 
+                    <a href="{{ url_for('signup_page') }}">Sign Up</a>
+                </p>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        document.getElementById("login-form").addEventListener("submit", async function (event) {
+            event.preventDefault();  // Prevent default form submission
+        
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            const errorMessage = document.getElementById("login-error");
+        
+            try {
+                const response = await fetch("http://127.0.0.1:5000/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+        
+                if (response.ok) {
+                    localStorage.setItem("access_token", data.access_token);  // ✅ Store JWT Token with correct key
+                    window.location.href = "/";  // ✅ Redirect to landing page
+                } else {
+                    errorMessage.classList.remove("hidden"); // Show error message
+                }
+            } catch (error) {
+                console.error("Login failed:", error);
+            }
+        });
+    </script>
+
+</body>
+</html>
