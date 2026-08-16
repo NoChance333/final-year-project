@@ -33,14 +33,30 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 jwt = JWTManager(app)
 
 # ✅ MongoDB Configuration (✔️ EDITED)
-mongo_uri = os.getenv("MONGO_URI")  
-client = MongoClient(mongo_uri)
-db = client["tokenized_asset"]
+mongo_uri = os.getenv("MONGO_URI")
+client = None
+db = None
+users_collection = None
+upload_collection = None
+assets_collection = None
 
-# ✅ Collections
-users_collection = db["users"]
-upload_collection = db["upload"]
-assets_collection = db["assets"]
+if mongo_uri:
+    try:
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
+        db = client["tokenized_asset"]
+        users_collection = db["users"]
+        upload_collection = db["upload"]
+        assets_collection = db["assets"]
+        print("✅ MongoDB connected successfully")
+    except Exception as e:
+        print(f"⚠️ MongoDB connection failed: {e}")
+else:
+    print("⚠️ MONGO_URI is not set. Database routes will return an error until it is configured.")
+
+
+def ensure_db_ready():
+    if users_collection is None or upload_collection is None or assets_collection is None:
+        raise RuntimeError("Database is unavailable. Set MONGO_URI to a valid MongoDB connection string and ensure the server is running.")
 
 # ✅ Blockchain & IPFS Configuration (✔️ All already using env)
 IPFS_API_URL = os.getenv('IPFS_API_URL')
@@ -173,6 +189,7 @@ def signup_page():
 # ✅ User Registration
 @app.route('/register', methods=['POST'])
 def register():
+    ensure_db_ready()
     data = request.get_json()
     full_name = data.get('full_name')
     email = data.get('email')
@@ -200,6 +217,7 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     try:
+        ensure_db_ready()
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
@@ -232,6 +250,7 @@ def login():
 @jwt_required()
 def upload_file():
     try:
+        ensure_db_ready()
         # Authenticate user
         user_info = get_jwt_identity()
         user_email = user_info.get('email') if isinstance(user_info, dict) else user_info
@@ -288,6 +307,7 @@ def upload_file():
 @app.route('/mint', methods=['POST'])
 @jwt_required()
 def mint_token():
+    ensure_db_ready()
     data = request.get_json()
     cid = data.get("cid")
 
@@ -347,6 +367,7 @@ def mint_token():
 @jwt_required()
 def get_uploaded_files():
     try:
+        ensure_db_ready()
         user_email = get_jwt_identity()
         if isinstance(user_email, dict):
             user_email = user_email.get("email", "")
@@ -370,6 +391,7 @@ def get_uploaded_files():
 @app.route('/update_name', methods=['POST'])
 def update_name():
     try:
+        ensure_db_ready()
         data = request.get_json()
         new_name = data.get("new_name")
         current_password = data.get("current_password")
@@ -400,6 +422,7 @@ def update_name():
 @app.route('/change-password', methods=['POST'])
 def change_password():
     try:
+        ensure_db_ready()
         data = request.get_json()
         email = data.get('email')
         current_password = data.get('current_password')
@@ -450,6 +473,7 @@ def get_chain_status():
 @app.route('/dashboard/files-count', methods=['GET'])
 @jwt_required()
 def get_files_count():
+    ensure_db_ready()
     user_email = get_jwt_identity()  # Fix applied
     count = upload_collection.count_documents({"uploaded_by_email": user_email})
     return jsonify({"files_count": count}), 200
@@ -457,6 +481,7 @@ def get_files_count():
 @app.route('/dashboard/tokens-count', methods=['GET'])
 @jwt_required()
 def get_tokens_count():
+    ensure_db_ready()
     user_email = get_jwt_identity()  # Fix applied
     count = assets_collection.count_documents({"owner_email": user_email})
     return jsonify({"tokens_count": count}), 200
@@ -464,6 +489,7 @@ def get_tokens_count():
 @app.route('/dashboard/deployed-blocks', methods=['GET'])
 @jwt_required()
 def get_deployed_blocks():
+    ensure_db_ready()
     user_email = get_jwt_identity()  # Fix applied
     blocks = assets_collection.find(
         {"owner_email": user_email},
