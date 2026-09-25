@@ -1,12 +1,32 @@
-# Ignore environment files
+# Environment variables
+.env
 backend/.env
 
-# Python cache
+# Python cache & bytecode
 __pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
 
-# Node and dependency folders (if any)
+# Geth blockchain runtime database & keystore history
+blockchain/data/geth/
+blockchain/data/history
+blockchain/logs/
+*.log
+
+# Contract deployment receipts (ephemeral runtime state)
+backend/deployed_contract.json
+
+# Dependencies
 node_modules/
 
-# System files
-*.log
-*.DS_Store
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini

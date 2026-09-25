@@ -278,6 +278,17 @@
                 </div>
             </div>
 
+            <!-- MetaMask Connect Button -->
+            <div class="relative" id="wallet-container">
+                <button id="connect-wallet-btn" onclick="toggleMetaMaskConnection()" class="flex items-center space-x-2 px-3 py-1.5 rounded-full border border-amber-500 bg-amber-50 hover:bg-amber-100 text-amber-900 text-sm font-medium transition-all shadow-sm">
+                    <svg class="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 18v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1h-9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h9zm-9-2h10V8H12v8zm4-2.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                    </svg>
+                    <span id="wallet-btn-text">Connect Wallet</span>
+                    <span id="wallet-status-dot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+                </button>
+            </div>
+
             <!-- User Profile / Login Button -->
             <div class="relative" id="profile-container">
                 <!-- Login Button (shown when logged out) -->
@@ -427,17 +438,23 @@
             ✖
         </button>
 
-        <h2 class="text-xl font-bold mb-4 text-center">Mint NFT</h2>
+        <h2 class="text-xl font-bold mb-4 text-center">Mint NFT (ERC-721)</h2>
+
+        <!-- Connected Recipient Wallet Badge -->
+        <div id="mint-wallet-badge" class="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-md text-xs flex items-center justify-between">
+            <span class="text-amber-800 font-medium">To Wallet:</span>
+            <span id="mint-wallet-text" class="font-mono text-amber-900 truncate max-w-[200px]">Connecting...</span>
+        </div>
 
         <div id="file-list" class="max-h-60 overflow-y-auto border p-3 rounded-md mb-4">
             <!-- File checkboxes will be dynamically added here -->
         </div>
 
-        <button onclick="mintToken()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+        <button onclick="mintToken()" id="mint-submit-btn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-semibold shadow">
             Mint Selected Tokens
         </button>
 
-        <div id="mint-success-message" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-lg mt-4 text-center">
+        <div id="mint-success-message" class="hidden bg-green-50 border border-green-300 text-green-800 px-4 py-3 rounded-lg mt-4 text-xs">
             ✅ NFT minted successfully!
         </div>
     </div>
@@ -465,6 +482,8 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
     checkAuthStatus();
+    initMetaMask();
+    pollChainStatus();
 
     const uploadForm = document.getElementById("upload-form");
 
@@ -918,6 +937,9 @@ async function openMintTokenModal() {
             fileList.appendChild(div);
         });
 
+        // ✅ Update wallet UI inside modal
+        updateWalletUI(currentWalletAddress);
+
         // ✅ Show the modal
         document.getElementById("mint-token-modal").classList.remove("hidden");
 
@@ -926,16 +948,22 @@ async function openMintTokenModal() {
     }
 }
 
-
-
 async function mintToken() {
     const checkboxes = document.querySelectorAll("input[name='fileCheckbox']:checked");
     const mintSuccessMessage = document.getElementById("mint-success-message");
+    const submitBtn = document.getElementById("mint-submit-btn");
 
     if (checkboxes.length === 0) {
         alert("Please select at least one file to mint.");
         return;
     }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Minting NFT on PoS Chain...";
+    }
+
+    const recipientWallet = currentWalletAddress || localStorage.getItem("connected_wallet");
 
     for (const checkbox of checkboxes) {
         const cid = checkbox.value;
@@ -947,7 +975,10 @@ async function mintToken() {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${localStorage.getItem("access_token")}`,
                 },
-                body: JSON.stringify({ cid }),
+                body: JSON.stringify({
+                    cid: cid,
+                    wallet_address: recipientWallet
+                }),
             });
 
             const data = await response.json();
@@ -956,11 +987,25 @@ async function mintToken() {
                 throw new Error(data.error || "Minting failed");
             }
 
-            // ✅ Show success message for each minted file
-            mintSuccessMessage.innerHTML = `✅ NFT minted! Contract: <span class="font-bold">${data.contract_address}</span>`;
+            // ✅ Show success message with details and MetaMask watchAsset button
+            mintSuccessMessage.innerHTML = `
+                <div class="font-bold text-sm text-green-900 mb-1">🎉 NFT #${data.token_id || 1} Minted Successfully!</div>
+                <div><b>Block Number:</b> #${data.block_no}</div>
+                <div><b>Recipient Wallet:</b> <span class="font-mono text-[11px]">${data.recipient}</span></div>
+                <div><b>Contract Address:</b> <span class="font-mono text-[11px]">${data.contract_address}</span></div>
+                <div><b>Transaction:</b> <span class="font-mono text-[11px]">${data.tx_hash.substring(0, 16)}...</span></div>
+                <div class="pt-2 flex space-x-2">
+                    <button onclick="addNFTToMetaMask('${data.contract_address}', '${data.token_id || 1}')" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-medium text-xs flex items-center shadow">
+                        🦊 Add NFT to MetaMask
+                    </button>
+                </div>
+            `;
             mintSuccessMessage.classList.remove("hidden");
 
-            await new Promise(resolve => setTimeout(resolve, 1500)); // Delay between mints
+            // Remove minted item from list
+            checkbox.closest("div")?.remove();
+
+            await new Promise(resolve => setTimeout(resolve, 2500));
 
         } catch (error) {
             console.error("Minting error:", error);
@@ -968,11 +1013,16 @@ async function mintToken() {
         }
     }
 
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Mint Selected Tokens";
+    }
+
     // Hide after completion
     setTimeout(() => {
         mintSuccessMessage.classList.add("hidden");
         hideMintTokenModal();
-    }, 3000);
+    }, 6000);
 }
 
 function hideMintTokenModal() {
@@ -1051,6 +1101,209 @@ async function fetchDashboardData() {
 
 
 
+
+// ==========================================
+// 🦊 MetaMask & Blockchain Integration
+// ==========================================
+let currentWalletAddress = null;
+
+async function initMetaMask() {
+    const saved = localStorage.getItem("connected_wallet");
+    if (saved) {
+        currentWalletAddress = saved;
+        updateWalletUI(saved);
+    }
+
+    if (window.ethereum) {
+        try {
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            if (accounts.length > 0) {
+                currentWalletAddress = accounts[0];
+                localStorage.setItem("connected_wallet", currentWalletAddress);
+                updateWalletUI(currentWalletAddress);
+            }
+        } catch (e) {
+            console.warn("MetaMask account query error:", e);
+        }
+
+        window.ethereum.on('accountsChanged', (accounts) => {
+            if (accounts.length > 0) {
+                currentWalletAddress = accounts[0];
+                localStorage.setItem("connected_wallet", currentWalletAddress);
+                updateWalletUI(currentWalletAddress);
+                showToastMessage(`Switched wallet: ${currentWalletAddress.substring(0, 6)}...${currentWalletAddress.substring(38)}`, "success");
+            } else {
+                currentWalletAddress = null;
+                localStorage.removeItem("connected_wallet");
+                updateWalletUI(null);
+            }
+        });
+
+        window.ethereum.on('chainChanged', () => {
+            window.location.reload();
+        });
+    }
+}
+
+function updateWalletUI(address) {
+    const btnText = document.getElementById("wallet-btn-text");
+    const dot = document.getElementById("wallet-status-dot");
+    const mintRecipient = document.getElementById("mint-wallet-text");
+
+    if (address) {
+        if (btnText) btnText.textContent = `${address.substring(0, 6)}...${address.substring(38)}`;
+        if (dot) {
+            dot.className = "w-2 h-2 rounded-full bg-green-500 shadow-sm";
+        }
+        if (mintRecipient) {
+            mintRecipient.textContent = address;
+            mintRecipient.className = "font-mono font-semibold text-green-700 truncate max-w-[200px]";
+        }
+    } else {
+        if (btnText) btnText.textContent = "Connect Wallet";
+        if (dot) {
+            dot.className = "w-2 h-2 rounded-full bg-gray-400";
+        }
+        if (mintRecipient) {
+            mintRecipient.textContent = "Not connected (will use server default)";
+            mintRecipient.className = "font-mono font-semibold text-amber-600 truncate max-w-[200px]";
+        }
+    }
+}
+
+async function toggleMetaMaskConnection() {
+    if (!window.ethereum) {
+        showToastMessage("MetaMask not found! Please install MetaMask browser extension.", "error");
+        return;
+    }
+
+    try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts.length > 0) {
+            currentWalletAddress = accounts[0];
+            localStorage.setItem("connected_wallet", currentWalletAddress);
+
+            // Automatically prompt to add or switch to Local PoS Devnet (Chain ID 12345 / 0x3039)
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x3039' }],
+                });
+            } catch (switchErr) {
+                if (switchErr.code === 4902) {
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [{
+                            chainId: '0x3039',
+                            chainName: 'Local PoS Devnet',
+                            rpcUrls: ['http://127.0.0.1:8545'],
+                            nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }
+                        }]
+                    });
+                }
+            }
+
+            updateWalletUI(currentWalletAddress);
+            showToastMessage(`Wallet connected: ${currentWalletAddress.substring(0, 6)}...${currentWalletAddress.substring(38)}`, "success");
+        }
+    } catch (err) {
+        console.error("Wallet connection error:", err);
+        showToastMessage(err.message || "Failed to connect wallet", "error");
+    }
+}
+
+async function addNFTToMetaMask(contractAddress, tokenId) {
+    if (!window.ethereum) {
+        showToastMessage("MetaMask not detected.", "error");
+        return;
+    }
+    try {
+        await window.ethereum.request({
+            method: 'wallet_watchAsset',
+            params: {
+                type: 'ERC721',
+                options: {
+                    address: contractAddress,
+                    tokenId: String(tokenId),
+                },
+            },
+        });
+        showToastMessage("Token requested in MetaMask!", "success");
+    } catch (e) {
+        console.error("watchAsset error:", e);
+    }
+}
+
+// ==========================================
+// ⛓️ Chain Status & Transactions Dropdown
+// ==========================================
+function toggleTransactionDropdown() {
+    const dropdown = document.getElementById("transaction-dropdown");
+    if (!dropdown) return;
+    dropdown.classList.toggle("hidden");
+    if (!dropdown.classList.contains("hidden")) {
+        fetchRecentTransactions();
+    }
+}
+
+async function pollChainStatus() {
+    try {
+        const res = await fetch("/api/chain-status");
+        if (res.ok) {
+            const data = await res.json();
+            const ind = document.getElementById("chain-status-indicator");
+            const txt = document.getElementById("chain-status-text");
+            if (data.isRunning) {
+                if (ind) {
+                    ind.className = "ml-2 w-3 h-3 rounded-full bg-green-500 animate-pulse";
+                }
+                if (txt) {
+                    txt.textContent = `Running (Block #${data.latestBlock}, Chain: ${data.chainId})`;
+                    txt.className = "ml-2 text-green-600 font-semibold";
+                }
+            } else {
+                if (ind) ind.className = "ml-2 w-3 h-3 rounded-full bg-red-500";
+                if (txt) {
+                    txt.textContent = "Not Running";
+                    txt.className = "ml-2 text-red-500";
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("Chain status error:", e);
+    }
+}
+setInterval(pollChainStatus, 4000);
+
+async function fetchRecentTransactions() {
+    const list = document.getElementById("transaction-list");
+    if (!list) return;
+    try {
+        const res = await fetch("/api/recent-transactions");
+        const data = await res.json();
+        list.innerHTML = "";
+        if (!data.transactions || data.transactions.length === 0) {
+            list.innerHTML = "<p class='px-4 py-2 text-xs text-gray-500'>No token transactions recorded yet.</p>";
+            return;
+        }
+        data.transactions.forEach(tx => {
+            const item = document.createElement("div");
+            item.className = "px-4 py-2 border-b text-xs hover:bg-gray-50 space-y-0.5";
+            item.innerHTML = `
+                <div class="font-bold text-gray-800 flex justify-between">
+                    <span>NFT #${tx.token_id || 1}</span>
+                    <span class="text-gray-400">Block #${tx.block_no}</span>
+                </div>
+                <div class="text-gray-600 truncate font-medium">${tx.file_name}</div>
+                <div class="text-blue-600 font-mono text-[10px] truncate">To: ${tx.recipient_wallet || tx.owner_email}</div>
+                <div class="text-gray-400 font-mono text-[9px] truncate">CID: ${tx.cid}</div>
+            `;
+            list.appendChild(item);
+        });
+    } catch (e) {
+        list.innerHTML = "<p class='px-4 py-2 text-xs text-red-500'>Error loading transactions.</p>";
+    }
+}
 
     </script>
     

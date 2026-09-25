@@ -1,11 +1,16 @@
+import os
 from pymongo import MongoClient
 from datetime import datetime
 import bcrypt
+from dotenv import load_dotenv
 
-# MongoDB Atlas connection string
-mongo_uri = "mongodb+srv://sashasimple4:Cf19ijUml2iSipWM@cluster0.cjl4t.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+# Load environment variables
+load_dotenv()
 
-# Connect to MongoDB Atlas
+# MongoDB connection string (defaults to local Community Server)
+mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/tokenized_asset")
+
+# Connect to MongoDB
 client = MongoClient(mongo_uri)
 
 # Select database
