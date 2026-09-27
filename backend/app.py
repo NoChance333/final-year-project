@@ -32,10 +32,14 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'novis_bca_super_secr
 jwt = JWTManager(app)
 
 # Blockchain & IPFS Configuration
+PINATA_JWT = os.getenv('PINATA_JWT')
+PINATA_API_KEY = os.getenv('PINATA_API_KEY')
+PINATA_SECRET_KEY = os.getenv('PINATA_SECRET_KEY')
 IPFS_API_URL = os.getenv('IPFS_API_URL', 'http://127.0.0.1:5001/api/v0/add')
 RPC_URL = os.getenv('RPC_URL', 'http://127.0.0.1:8545')
 CHAIN_ID = int(os.getenv('CHAIN_ID', '12345'))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
+CONTRACT_ADDRESS_ENV = os.getenv('CONTRACT_ADDRESS')
 SOLC_PATH = os.getenv('SOLC_PATH', r'C:\Users\ASUS\.solcx\solc-v0.8.20\solc.exe')
 CONTRACT_FILE = os.path.join(BASE_DIR, "blockchain", "contracts", "CIDToken.sol")
 DEPLOYED_RECEIPT_FILE = os.path.join(BASE_DIR, "backend", "deployed_contract.json")
@@ -116,19 +120,26 @@ def get_or_deploy_contract(web3):
     global _cached_contract_address
     abi, bytecode = compile_cid_contract()
 
-    # Check if we already have a valid deployed contract address
+    # 1. Check environment variable first (e.g. pre-deployed contract on Sepolia)
+    if CONTRACT_ADDRESS_ENV and Web3.is_address(CONTRACT_ADDRESS_ENV):
+        _cached_contract_address = Web3.to_checksum_address(CONTRACT_ADDRESS_ENV)
+        return _cached_contract_address, abi
+
+    # 2. Check if we already have a valid deployed contract address cached in memory
     if _cached_contract_address:
         code = web3.eth.get_code(_cached_contract_address)
         if code and code != b'' and code != b'\x00':
             return _cached_contract_address, abi
 
-    # Check receipt file
+    # 3. Check receipt file
     if os.path.exists(DEPLOYED_RECEIPT_FILE):
         try:
             with open(DEPLOYED_RECEIPT_FILE, "r") as f:
                 data = json.load(f)
                 cand = data.get("contract_address")
-                if cand:
+                receipt_chain = data.get("chain_id")
+                # Only reuse if chain matches current web3 chain
+                if cand and (receipt_chain is None or receipt_chain == web3.eth.chain_id):
                     cand_cs = Web3.to_checksum_address(cand)
                     code = web3.eth.get_code(cand_cs)
                     if code and code != b'' and code != b'\x00':
@@ -137,16 +148,19 @@ def get_or_deploy_contract(web3):
         except Exception as e:
             print("[WARN] Reading deployed contract receipt error:", e)
 
-    # Deploy new contract
+    # 4. Deploy new contract using deployer account
     account = Account.from_key(PRIVATE_KEY)
-    print(f"[INFO] Deploying CIDToken contract with deployer {account.address}...")
+    print(f"[INFO] Deploying CIDToken contract with deployer {account.address} on Chain ID {web3.eth.chain_id}...")
     contract_factory = web3.eth.contract(abi=abi, bytecode=bytecode)
     nonce = web3.eth.get_transaction_count(account.address)
 
     latest_block = web3.eth.get_block('latest')
     base_fee = latest_block.get('baseFeePerGas', 1000000000)
-    max_priority_fee = web3.to_wei(2, 'gwei')
-    max_fee = base_fee * 2 + max_priority_fee
+    try:
+        max_priority_fee = web3.eth.max_priority_fee
+    except Exception:
+        max_priority_fee = web3.to_wei(2, 'gwei')
+    max_fee = int(base_fee * 1.5) + max_priority_fee
 
     tx = contract_factory.constructor().build_transaction({
         'chainId': web3.eth.chain_id,
@@ -159,7 +173,7 @@ def get_or_deploy_contract(web3):
 
     signed = account.sign_transaction(tx)
     tx_hash = web3.eth.send_raw_transaction(signed.raw_transaction)
-    receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+    receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
     _cached_contract_address = receipt.contractAddress
     print(f"[SUCCESS] CIDToken deployed at: {_cached_contract_address} (Block {receipt.blockNumber})")
 
@@ -265,17 +279,48 @@ def upload_file():
             return jsonify({"error": "No file selected"}), 400
 
         filename = secure_filename(file.filename)
+        file_bytes = file.read()
+        ipfs_hash = None
 
-        # Upload file directly to IPFS daemon
-        files = {'file': (filename, file.read(), file.mimetype)}
-        try:
-            ipfs_response = requests.post(IPFS_API_URL, files=files, timeout=30)
-            if ipfs_response.status_code != 200:
-                return jsonify({"error": "IPFS upload failed", "details": ipfs_response.text}), 500
-            ipfs_data = ipfs_response.json()
-            ipfs_hash = ipfs_data.get("Hash")
-        except Exception as e:
-            return jsonify({"error": f"Failed to connect to IPFS daemon: {str(e)}"}), 500
+        # Upload file to IPFS (Pinata Cloud if credentials provided, else local IPFS daemon)
+        if PINATA_JWT or (PINATA_API_KEY and PINATA_SECRET_KEY):
+            headers = {}
+            if PINATA_JWT:
+                headers['Authorization'] = f"Bearer {PINATA_JWT.strip()}"
+            else:
+                headers['pinata_api_key'] = PINATA_API_KEY.strip()
+                headers['pinata_secret_api_key'] = PINATA_SECRET_KEY.strip()
+
+            pinata_files = {'file': (filename, file_bytes, file.mimetype or 'application/octet-stream')}
+            try:
+                res = requests.post(
+                    "https://api.pinata.cloud/pinning/pinFileToIPFS",
+                    files=pinata_files,
+                    headers=headers,
+                    timeout=30
+                )
+                if res.status_code == 200:
+                    pinata_data = res.json()
+                    ipfs_hash = pinata_data.get("IpfsHash") or pinata_data.get("Hash")
+                    print(f"[SUCCESS] Uploaded to Pinata IPFS: CID={ipfs_hash}")
+                else:
+                    print(f"[WARN] Pinata upload error: {res.status_code} - {res.text}")
+                    return jsonify({"error": "Pinata IPFS upload failed", "details": res.text}), 500
+            except Exception as e:
+                print(f"[ERROR] Pinata connection failed: {e}")
+                return jsonify({"error": f"Failed to connect to Pinata IPFS: {str(e)}"}), 500
+        else:
+            # Fallback to local IPFS daemon
+            files_payload = {'file': (filename, file_bytes, file.mimetype or 'application/octet-stream')}
+            try:
+                ipfs_response = requests.post(IPFS_API_URL, files=files_payload, timeout=30)
+                if ipfs_response.status_code != 200:
+                    return jsonify({"error": "Local IPFS upload failed", "details": ipfs_response.text}), 500
+                ipfs_data = ipfs_response.json()
+                ipfs_hash = ipfs_data.get("Hash")
+                print(f"[SUCCESS] Uploaded to Local IPFS: CID={ipfs_hash}")
+            except Exception as e:
+                return jsonify({"error": f"Failed to connect to IPFS: {str(e)}. (Set PINATA_JWT or PINATA_API_KEY/SECRET for cloud hosting)"}), 500
 
         # Store metadata in MongoDB upload collection
         upload_data = {
@@ -365,8 +410,11 @@ def mint_token():
         nonce = web3.eth.get_transaction_count(account.address)
         latest_block = web3.eth.get_block('latest')
         base_fee = latest_block.get('baseFeePerGas', 1000000000)
-        max_priority_fee = web3.to_wei(2, 'gwei')
-        max_fee = base_fee * 2 + max_priority_fee
+        try:
+            max_priority_fee = web3.eth.max_priority_fee
+        except Exception:
+            max_priority_fee = web3.to_wei(2, 'gwei')
+        max_fee = int(base_fee * 1.5) + max_priority_fee
 
         mint_tx = contract.functions.mintToken(recipient, cid).build_transaction({
             'chainId': web3.eth.chain_id,
@@ -379,7 +427,7 @@ def mint_token():
 
         signed_mint = account.sign_transaction(mint_tx)
         tx_hash = web3.eth.send_raw_transaction(signed_mint.raw_transaction)
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=40)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
 
         # Determine minted token ID
         token_id = None
@@ -427,11 +475,15 @@ def get_chain_status():
         latest_block = web3.eth.block_number if is_running else None
         chain_id = web3.eth.chain_id if is_running else None
 
+        chain_name = "Sepolia Testnet" if chain_id == 11155111 else ("Polygon Amoy" if chain_id == 80002 else f"Local Devnet ({chain_id})")
+
         return jsonify({
             "isRunning": is_running,
             "latestBlock": latest_block,
             "chainId": chain_id,
-            "contractAddress": _cached_contract_address
+            "chainName": chain_name,
+            "contractAddress": _cached_contract_address,
+            "rpcUrl": RPC_URL
         }), 200
     except Exception as e:
         return jsonify({"isRunning": False, "error": str(e)}), 200

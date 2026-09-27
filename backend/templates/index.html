@@ -1183,20 +1183,23 @@ async function toggleMetaMaskConnection() {
             currentWalletAddress = accounts[0];
             localStorage.setItem("connected_wallet", currentWalletAddress);
 
-            // Automatically prompt to add or switch to Local PoS Devnet (Chain ID 12345 / 0x3039)
+            // Automatically prompt to add or switch to the active chain (Sepolia or Local Devnet)
+            const targetChainId = currentChainInfo.chainId || 12345;
+            const targetChainHex = '0x' + targetChainId.toString(16);
+
             try {
                 await window.ethereum.request({
                     method: 'wallet_switchEthereumChain',
-                    params: [{ chainId: '0x3039' }],
+                    params: [{ chainId: targetChainHex }],
                 });
             } catch (switchErr) {
                 if (switchErr.code === 4902) {
                     await window.ethereum.request({
                         method: 'wallet_addEthereumChain',
                         params: [{
-                            chainId: '0x3039',
-                            chainName: 'Local PoS Devnet',
-                            rpcUrls: ['http://127.0.0.1:8545'],
+                            chainId: targetChainHex,
+                            chainName: currentChainInfo.chainName || 'Ethereum Network',
+                            rpcUrls: [currentChainInfo.rpcUrl || 'https://ethereum-sepolia-rpc.publicnode.com'],
                             nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }
                         }]
                     });
@@ -1246,11 +1249,20 @@ function toggleTransactionDropdown() {
     }
 }
 
+let currentChainInfo = { chainId: 12345, chainName: 'Novis Local Devnet', rpcUrl: 'http://127.0.0.1:8545' };
+
 async function pollChainStatus() {
     try {
         const res = await fetch("/api/chain-status");
         if (res.ok) {
             const data = await res.json();
+            if (data.chainId) {
+                currentChainInfo = {
+                    chainId: data.chainId,
+                    chainName: data.chainName || (data.chainId === 11155111 ? 'Sepolia Testnet' : `Chain ${data.chainId}`),
+                    rpcUrl: data.rpcUrl || 'https://ethereum-sepolia-rpc.publicnode.com'
+                };
+            }
             const ind = document.getElementById("chain-status-indicator");
             const txt = document.getElementById("chain-status-text");
             if (data.isRunning) {
@@ -1258,7 +1270,7 @@ async function pollChainStatus() {
                     ind.className = "ml-2 w-3 h-3 rounded-full bg-green-500 animate-pulse";
                 }
                 if (txt) {
-                    txt.textContent = `Running (Block #${data.latestBlock}, Chain: ${data.chainId})`;
+                    txt.textContent = `${data.chainName || 'Running'} (Block #${data.latestBlock})`;
                     txt.className = "ml-2 text-green-600 font-semibold";
                 }
             } else {
