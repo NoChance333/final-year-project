@@ -53,7 +53,7 @@
             const errorMessage = document.getElementById("login-error");
         
             try {
-                const response = await fetch("http://127.0.0.1:5000/login", {
+                const response = await fetch("/login", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email, password })
@@ -65,10 +65,13 @@
                     localStorage.setItem("access_token", data.access_token);  // ✅ Store JWT Token with correct key
                     window.location.href = "/";  // ✅ Redirect to landing page
                 } else {
+                    errorMessage.textContent = data.error || "Invalid email or password. Please try again.";
                     errorMessage.classList.remove("hidden"); // Show error message
                 }
             } catch (error) {
                 console.error("Login failed:", error);
+                errorMessage.textContent = "Network error: " + error.message;
+                errorMessage.classList.remove("hidden");
             }
         });
     </script>
